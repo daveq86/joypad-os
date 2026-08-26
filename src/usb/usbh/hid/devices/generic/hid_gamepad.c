@@ -455,29 +455,42 @@ void process_hid_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t const* repo
         buttonStart = current.all_buttons & (0x01 << (buttonCount-1));
       }
 
-      buttons = ((current.up)       ? JP_BUTTON_DU : 0) |
-                ((current.down)     ? JP_BUTTON_DD : 0) |
-                ((current.left)     ? JP_BUTTON_DL : 0) |
-                ((current.right)    ? JP_BUTTON_DR : 0) |
-                ((current.button2)  ? JP_BUTTON_B1 : 0) |
-                ((buttonI)          ? JP_BUTTON_B2 : 0) |
-                ((buttonIV)         ? JP_BUTTON_B3 : 0) |
-                ((buttonIII)        ? JP_BUTTON_B4 : 0) |
-                ((buttonV)          ? JP_BUTTON_L1 : 0) |
-                ((buttonVI)         ? JP_BUTTON_R1 : 0) |
-                ((buttonVII)        ? JP_BUTTON_L2 : 0) |
-                ((buttonVIII)       ? JP_BUTTON_R2 : 0) |
-                ((buttonSelect)     ? JP_BUTTON_S1 : 0) |
-                ((buttonStart)      ? JP_BUTTON_S2 : 0) |
-                ((current.button11) ? JP_BUTTON_L3 : 0) |
-                ((current.button12) ? JP_BUTTON_R3 : 0);
+      buttons = // 1. Jouw 11 knoppen op pc-posities (Xbox-stijl):
+                ((current.button13) ? JP_BUTTON_DU : 0) | // button13 =  Up (Dpad)
+                ((current.button14) ? JP_BUTTON_DD : 0) | // button14 =  Down (Dpad)
+                ((current.button15) ? JP_BUTTON_DL : 0) | // button15 =  Left (Dpad)
+                ((current.button16) ? JP_BUTTON_DR : 0) | // button16 =  Right (Dpad)   
+                ((current.button4)  ? JP_BUTTON_S2 : 0) | // button4  =  + Plus (Start)
+                ((current.button3)  ? JP_BUTTON_S1 : 0) | // button3  =  - Minus (Select)
+                ((current.button5)  ? JP_BUTTON_B2 : 0) | // button5  =  a (East)  | GC Style = B4 | Sw Style = B2 
+                ((current.button2)  ? JP_BUTTON_B1 : 0) | // button2  =  b (South) | GC Style = B2 | Sw Style = B1
+                ((current.button1)  ? JP_BUTTON_B3 : 0) | // button1  =  y (West)  | GC Style = B1 | Sw Style = B3
+                ((current.button6)  ? JP_BUTTON_B4 : 0) | // button6  =  x (North) | GC Style = B3 | Sw Style = B4
+
+                // Schouderknoppen & Triggers
+                ((current.button9)  ? JP_BUTTON_L1 : 0) | // button9  =  ZL
+                ((current.button10) ? JP_BUTTON_R1 : 0) | // button10 =  ZR
+                ((current.button7)  ? JP_BUTTON_L2 : 0) | // button7  =  L (Digital Click)
+                ((current.button8)  ? JP_BUTTON_R2 : 0) | // button8  =  R (Digital click)
+                ((current.button11) ? JP_BUTTON_A1 : 0);  // button11 =  Home
+
     }
 
-    // HID convention: 0=up, 255=down (no inversion needed)
-    uint8_t axis_x = current.x;
-    uint8_t axis_y = current.y;
-    uint8_t axis_z = current.z;
-    uint8_t axis_rz = current.rz;
+    // 3. Analog Axis (including Analog Triggers)
+    uint8_t axis_x  = current.x;                                 // Left Stick X
+    uint8_t axis_y  = current.y;                                 // Left Stick Y
+    uint8_t axis_z  = inst->zLoc.bitMask ? current.rx : 128;     // Right Stick X
+    uint8_t axis_rz = inst->zLoc.bitMask ? current.ry : 128;     // Right Stick Y
+    uint8_t trigger_l = inst->zLoc.bitMask ? current.rz : 0;     // Analog Trigger L
+    uint8_t trigger_r = inst->zLoc.bitMask ? current.z : 0;      // Analog Trigger R
+
+    trigger_l = (trigger_l > 145)
+    ? ((trigger_l - 141) * 255) / (249 - 141)
+    : 0;
+
+    trigger_r = (trigger_r > 145)
+    ? ((trigger_r - 141) * 255) / (239 - 141)
+    : 0;
 
     // keep analog within range [1-255]
     ensureAllNonZero(&axis_x, &axis_y, &axis_z, &axis_rz);
@@ -489,7 +502,7 @@ void process_hid_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t const* repo
       .transport = INPUT_TRANSPORT_USB,
       .buttons = buttons,
       .button_count = buttonCount,
-      .analog = {axis_x, axis_y, axis_z, axis_rz, current.rx, current.ry},
+      .analog = {axis_x, axis_y, axis_z, axis_rz, trigger_l, trigger_r},
       .keys = 0,
     };
     router_submit_input(&event);

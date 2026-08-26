@@ -8,7 +8,7 @@
 
 #define INVALID_REPORT_ID -1 // means 1/X of half range of analog would be dead zone
 #define DEAD_ZONE 4U
-#define MAX_BUTTONS 12 // max generic HID buttons to map
+#define MAX_BUTTONS 16 // max generic HID buttons to map
 #define HID_DEBUG 1
 
 #define HID_GAMEPAD  0x00
@@ -37,6 +37,11 @@ typedef union
     bool button11 : 1;
     bool button12 : 1;
 
+    bool button13 : 1;
+    bool button14 : 1;
+    bool button15 : 1;
+    bool button16 : 1;
+
     // TODO: add support for A1/A2 buttons for dinput/generic HID gamepad input
     // bool button13 : 1;
     // bool button14 : 1;
@@ -46,7 +51,7 @@ typedef union
   struct
   {
     uint8_t all_direction : 4;
-    uint16_t all_buttons : 12;
+    uint32_t all_buttons : 16;
     uint32_t analog_sticks : 32;
     uint16_t analog_triggers : 16;
   };
