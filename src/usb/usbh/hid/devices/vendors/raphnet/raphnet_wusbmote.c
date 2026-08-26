@@ -4,47 +4,48 @@
 #include "core/router/router.h"
 #include "core/input_event.h"
 
-// Check of het jouw controller is (Vul hier je eigen VID en PID in!)
+#include <string.h>
+
+// Macro om bits uit de 16-bit knoppen-masker te halen
+#define GET_BIT(mask, button_num) (((mask) >> ((button_num) - 1)) & 0x01)
+
 bool is_raphnet_wusbmote(uint16_t vid, uint16_t pid) {
   return (vid == 0x289B && pid == 0x0080); 
 }
 
-// Check of er wijzigingen zijn in de knoppen of assen
-bool diff_report_raphnet(raphnet_wusbmote_report_t const* rpt1, raphnet_wusbmote_report_t const* rpt2) {
+bool diff_report_wusbmote(raphnet_wusbmote_report_t const* rpt1, raphnet_wusbmote_report_t const* rpt2) {
   return memcmp(rpt1, rpt2, sizeof(raphnet_wusbmote_report_t)) != 0;
 }
 
-// Verwerk de USB HID input
 void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
-  uint32_t buttons;
+  uint32_t buttons = 0;
   static raphnet_wusbmote_report_t prev_report[MAX_DEVICES] = { 0 };
 
   raphnet_wusbmote_report_t input_report;
   
-  // Veilig overkopiëren naar onze struct
   uint16_t copy_len = len < sizeof(raphnet_wusbmote_report_t) ? len : sizeof(raphnet_wusbmote_report_t);
   memset(&input_report, 0, sizeof(raphnet_wusbmote_report_t));
   memcpy(&input_report, report, copy_len);
 
-  if (diff_report_raphnet(&prev_report[dev_addr-1], &input_report)) {
-    
+  if (diff_report_wusbmote(&prev_report[dev_addr-1], &input_report)) {
+    uint16_t mask = input_report.all_buttons;
     // 1-on-1 map of Dpad and facebuttons
-    buttons = (((input_report.button13) ? JP_BUTTON_DU : 0) | // button13 =  Up (Dpad)
-               ((input_report.button14) ? JP_BUTTON_DD : 0) | // button14 =  Down (Dpad)
-               ((input_report.button15) ? JP_BUTTON_DL : 0) | // button15 =  Left (Dpad)
-               ((input_report.button16) ? JP_BUTTON_DR : 0) | // button16 =  Right (Dpad)  
-               ((input_report.button4)  ? JP_BUTTON_S2 : 0) | // button4  =  + Plus (Start)
-               ((input_report.button3)  ? JP_BUTTON_S1 : 0) | // button3  =  - Minus (Select)
-               ((input_report.button5)  ? JP_BUTTON_B2 : 0) | // button5  =  a (East)  | GC Style = B4 | Sw Style = B2
-               ((input_report.button2)  ? JP_BUTTON_B1 : 0) | // button2  =  b (South) | GC Style = B2 | Sw Style = B1
-               ((input_report.button1)  ? JP_BUTTON_B3 : 0) | // button1  =  y (West)  | GC Style = B1 | Sw Style = B3
-               ((input_report.button6)  ? JP_BUTTON_B4 : 0) | // button6  =  x (North) | GC Style = B3 | Sw Style = B4
-    // Shoulde buttons and Digital triggers
-               ((input_report.button9)  ? JP_BUTTON_L1 : 0) | // button9  =  ZL
-               ((input_report.button10) ? JP_BUTTON_R1 : 0) | // button10 =  ZR
-               ((input_report.button7)  ? JP_BUTTON_L2 : 0) | // button7  =  L (Digital Click)
-               ((input_report.button8)  ? JP_BUTTON_R2 : 0) | // button8  =  R (Digital Click)
-               ((input_report.button11) ? JP_BUTTON_A4 : 0)); // button11 =  Home (A1/A4 mappingtest)
+    buttons = (((GET_BIT(mask, 13)) ? JP_BUTTON_DU : 0) | // button13 =  Up (Dpad)
+               ((GET_BIT(mask, 14)) ? JP_BUTTON_DD : 0) | // button14 =  Down (Dpad)
+               ((GET_BIT(mask, 15)) ? JP_BUTTON_DL : 0) | // button15 =  Left (Dpad)
+               ((GET_BIT(mask, 16)) ? JP_BUTTON_DR : 0) | // button16 =  Right (Dpad)  
+               ((GET_BIT(mask, 4))  ? JP_BUTTON_S2 : 0) | // button4  =  + Plus (Start)
+               ((GET_BIT(mask, 3))  ? JP_BUTTON_S1 : 0) | // button3  =  - Minus (Select)
+               ((GET_BIT(mask, 5))  ? JP_BUTTON_B2 : 0) | // button5  =  a (East)  | GC Style = B4 | Sw Style = B2
+               ((GET_BIT(mask, 2))  ? JP_BUTTON_B1 : 0) | // button2  =  b (South) | GC Style = B2 | Sw Style = B1
+               ((GET_BIT(mask, 1))  ? JP_BUTTON_B3 : 0) | // button1  =  y (West)  | GC Style = B1 | Sw Style = B3
+               ((GET_BIT(mask, 9))  ? JP_BUTTON_B4 : 0) | // button6  =  x (North) | GC Style = B3 | Sw Style = B4
+    // Shoulder buttons and Digital triggers
+               ((GET_BIT(mask, 9))  ? JP_BUTTON_L1 : 0) | // button9  =  ZL
+               ((GET_BIT(mask, 10)) ? JP_BUTTON_R1 : 0) | // button10 =  ZR
+               ((GET_BIT(mask, 7))  ? JP_BUTTON_L2 : 0) | // button7  =  L (Digital Click)
+               ((GET_BIT(mask, 8))  ? JP_BUTTON_R2 : 0) | // button8  =  R (Digital Click)
+               ((GET_BIT(mask, 11)) ? JP_BUTTON_A4 : 0)); // button11 =  Home (A1/A4 mappingtest)
 
     // Analoge axis and Analog triggers
     uint8_t axis_x  = input_report.x;   // Left Stick X
@@ -54,14 +55,14 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
     uint8_t trigger_l = 0;              // Analog Trigger L
     uint8_t trigger_r = 0;              // Analog Trigger R
 
-    if (input_report.rz > 141) {
+    if (input_report.rz > 145) {
       uint8_t raw_l = input_report.rz > 249 ? 249 : input_report.rz;
-      trigger_l = ((raw_l - 141) * 255) / (249 - 141);
+      trigger_l = ((raw_l - 145) * 255) / (249 - 145);
     }
 
-    if (input_report.z > 141) {
+    if (input_report.z > 145) {
       uint8_t raw_r = input_report.z > 239 ? 239 : input_report.z;
-      trigger_r = ((raw_r - 141) * 255) / (239 - 141);
+      trigger_r = ((raw_r - 145) * 255) / (239 - 145);
     }
 
     // keep analog within range [1-255]
