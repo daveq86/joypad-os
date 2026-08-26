@@ -23,6 +23,7 @@
 #include "devices/vendors/sega/sega_astrocity.h"
 #include "devices/vendors/google/google_stadia.h"
 #include "devices/vendors/raphnet/raphnet_pce.h"
+#include "devices/vendors/raphnet/raphnet_wusbmote.h"
 #include "devices/vendors/microsoft/ms_sidewinder_dualstrike.h"
 #include "devices/vendors/microsoft/ms_sidewinder_commander.h"
 #include "devices/vendors/valve/steam_controller_2.h"
@@ -49,6 +50,7 @@ void register_devices() {
     device_interfaces[CONTROLLER_SWITCH2] = &switch2_pro_interface;
     device_interfaces[CONTROLLER_STADIA] = &google_stadia_interface;
     device_interfaces[CONTROLLER_RAPHNET_PCE] = &raphnet_pce_interface;
+    device_interfaces[CONTROLLER_RAPHNET_WUSBMOTE] = &raphnet_wusbmote_interface;
     device_interfaces[CONTROLLER_SIDEWINDER_DUALSTRIKE] = &ms_sidewinder_dualstrike_interface;
     device_interfaces[CONTROLLER_SIDEWINDER_COMMANDER] = &ms_sidewinder_commander_interface;
     device_interfaces[CONTROLLER_SINPUT] = &sinput_host_interface;
