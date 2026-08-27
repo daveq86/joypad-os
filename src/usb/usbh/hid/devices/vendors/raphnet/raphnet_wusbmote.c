@@ -9,17 +9,25 @@
 // Macro om bits uit de 16-bit knoppen-masker te halen
 #define GET_BIT(mask, button_num) (((mask) >> ((button_num) - 1)) & 0x01)
 
+static raphnet_wusbmote_report_t prev_report[MAX_DEVICES];
+
 bool is_raphnet_wusbmote(uint16_t vid, uint16_t pid) {
   return (vid == 0x289B && pid == 0x0080); 
 }
 
+bool parse_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
+
+  if (dev_addr > 0 && dev_addr <= MAX_DEVICES) {
+    memset(&prev_report[dev_addr-1], 0, sizeof(raphnet_wusbmote_report_t));
+  }
+  return true; 
+}
 bool diff_report_wusbmote(raphnet_wusbmote_report_t const* rpt1, raphnet_wusbmote_report_t const* rpt2) {
   return memcmp(rpt1, rpt2, sizeof(raphnet_wusbmote_report_t)) != 0;
 }
 
 void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
   uint32_t buttons = 0;
-  static raphnet_wusbmote_report_t prev_report[MAX_DEVICES] = { 0 };
 
   raphnet_wusbmote_report_t input_report;
   
@@ -85,10 +93,18 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   }
 }
 
+void unmount_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance) {
+if (dev_addr > 0 && dev_addr <= MAX_DEVICES) {
+    memset(&prev_report[dev_addr-1], 0, sizeof(raphnet_wusbmote_report_t));
+  }
+}
+
 DeviceInterface raphnet_wusbmote_interface = {
   .name = "Raphnet WUSBMote",
   .is_device = is_raphnet_wusbmote,
+  .check_descriptor = parse_raphnet_wusbmote,
   .process = process_raphnet_wusbmote,
+  .unmount = unmount_raphnet_wusbmote,
   .task = NULL,
   .init = NULL
 };
