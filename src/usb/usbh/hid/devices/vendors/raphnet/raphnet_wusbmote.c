@@ -4,6 +4,7 @@
 #include "core/buttons.h"
 #include "core/router/router.h"
 #include "core/input_event.h"
+#include "../../generic/hid_parser.h"
 #include <string.h>
 
 #define RAPHNET_WUSBMOTE 3
@@ -109,24 +110,6 @@ void parse_descriptor(uint8_t dev_addr, uint8_t instance)
         {
           switch (item->Attributes.Usage.Usage)
           {
-          case HID_USAGE_DESKTOP_WHEEL:
-          {
-            if (HID_DEBUG) TU_LOG1(" HID_USAGE_DESKTOP_WHEEL ");
-            hid_devices[dev_addr].instances[instance].type = HID_MOUSE;
-            break;
-          }
-          case HID_USAGE_DESKTOP_MOUSE:
-          {
-            if (HID_DEBUG) TU_LOG1(" HID_USAGE_DESKTOP_MOUSE ");
-            hid_devices[dev_addr].instances[instance].type = HID_MOUSE;
-            break;
-          }
-          case HID_USAGE_DESKTOP_KEYBOARD:
-          {
-            if (HID_DEBUG) TU_LOG1(" HID_USAGE_DESKTOP_KEYBOARD ");
-            hid_devices[dev_addr].instances[instance].type = HID_KEYBOARD;
-            break;
-          }
           case HID_USAGE_DESKTOP_X: // Left Analog X
           {
             if (HID_DEBUG) TU_LOG1(" HID_USAGE_DESKTOP_X ");

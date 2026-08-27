@@ -14,8 +14,6 @@
 #define HID_DEBUG 1
 
 #define HID_GAMEPAD  0x00
-#define HID_MOUSE    0x01
-#define HID_KEYBOARD 0x02
 
 typedef union
 {
