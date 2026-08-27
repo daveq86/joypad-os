@@ -1,4 +1,3 @@
-// raphnet_wusbmote.h
 #ifndef RAPHNET_WUSBMOTE_H
 #define RAPHNET_WUSBMOTE_H
 
@@ -6,21 +5,64 @@
 #include "../../../hid_utils.h"
 #include "tusb.h"
 
+#define INVALID_REPORT_ID -1
+#define DEAD_ZONE 4U
+
+#define MAX_BUTTONS 16
+#define HID_DEBUG 1
+
+#define HID_GAMEPAD  0x00
+#define HID_MOUSE    0x01
+#define HID_KEYBOARD 0x02
+
+typedef union
+{
+  struct
+  {
+    bool up : 1;
+    bool right : 1;
+    bool down : 1;
+    bool left : 1;
+
+    bool button1 : 1;
+    bool button2 : 1;
+    bool button3 : 1;
+    bool button4 : 1;
+
+    bool button5 : 1;
+    bool button6 : 1;
+    bool button7 : 1;
+    bool button8 : 1;
+
+    bool button9 : 1;
+    bool button10 : 1;
+    bool button11 : 1;
+    bool button12 : 1;
+
+    bool button13 : 1;
+    bool button14 : 1;
+    bool button15 : 1;
+    bool button16 : 1;
+
+    uint8_t x;
+    uint8_t y;
+    uint8_t z;
+    uint8_t rz;
+    uint8_t rx;
+    uint8_t ry;
+  };
+
+  struct
+  {
+    uint8_t all_direction : 4;
+    uint32_t all_buttons : 16;
+    uint32_t analog_sticks : 32;
+    uint16_t analog_triggers : 16;
+  };
+
+  uint64_t value : 64;
+} raphnet_wusbmote_state_t;
+
 extern DeviceInterface raphnet_wusbmote_interface;
 
-// De exacte bit- en byte-opbouw op basis van jouw controllerdata
-typedef struct TU_ATTR_PACKED
-{
-  // Next bytes: Analog axis en triggers
-  uint8_t x;   // Left stick X
-  uint8_t y;   // Left stick Y
-  uint8_t rx;  // Right stick X
-  uint8_t ry;  // Right stick Y
-  uint8_t rz;  // Left analog trigger
-  uint8_t z;   // Right analog trigger
-
-  uint16_t all_buttons; 
-
-} raphnet_wusbmote_report_t;
-
-#endif // RAPHNET_WUSBMOTE_H
+#endif
