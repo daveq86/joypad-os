@@ -3,6 +3,7 @@
 
 #include "../../../hid_device.h"
 #include "../../../hid_utils.h"
+#include "../../generic/hid_parser.h"
 #include "tusb.h"
 
 #define INVALID_REPORT_ID -1

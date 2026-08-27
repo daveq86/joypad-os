@@ -471,7 +471,7 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
     };
     router_submit_input(&event);
   }
-
+}
 
 // resets default values in case devices are hotswapped
 void unmount_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance)
