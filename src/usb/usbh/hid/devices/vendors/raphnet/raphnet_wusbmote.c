@@ -41,7 +41,7 @@ typedef struct TU_ATTR_PACKED
 static dinput_device_t hid_devices[MAX_DEVICES] = { 0 };
 
 // hid_parser info
-HID_ReportInfo_t *info;
+static HID_ReportInfo_t *info;
 
 //(hat format, 8 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
 static const uint8_t HAT_SWITCH_TO_DIRECTION_BUTTONS[] = {0b0001, 0b0011, 0b0010, 0b0110, 0b0100, 0b1100, 0b1000, 0b1001, 0b0000};
@@ -61,7 +61,7 @@ static inline bool USB_GetHIDReportItemInfoWithReportId(const uint8_t *ReportDat
 }
 
 // Parses HID descriptor into byteIndex/buttonMasks
-void parse_descriptor(uint8_t dev_addr, uint8_t instance)
+static void parse_descriptor(uint8_t dev_addr, uint8_t instance)
 {
   HID_ReportItem_t *item = info->FirstReportItem;
   //iterate filtered reports info to match report from data
