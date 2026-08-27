@@ -13,8 +13,6 @@
 #define MAX_BUTTONS 16
 #define HID_DEBUG 1
 
-#define HID_GAMEPAD  0x00
-
 typedef union
 {
   struct
