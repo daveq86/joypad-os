@@ -236,28 +236,33 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
 
   uint32_t buttons = 0;
-  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; // Correcte 2D array initialisatie
+  static raphnet_wusbmote_state_t previous[MAX_DEVICES]; 
   raphnet_wusbmote_state_t current = {0};
 
   dinput_instance_t *inst = &hid_devices[dev_addr].instances[instance];
 
-  // Als de adapter een Report ID gebruikt EN het eerste binnengekomen byte matcht niet met dit ID,
-  // dan is dit niet het juiste datapakket.
+  // SYNTAX FIX: Controleer of de eerste byte matcht met het verwachte Report ID
   if (inst->report_id && report[0] != inst->report_id) {
     return;
   }
 
-  // Uitlezen van assen en knoppen
-  uint16_t xValue = read_axis_value(report, &inst->xLoc);
-  uint16_t yValue = read_axis_value(report, &inst->yLoc);
-  uint16_t zValue = read_axis_value(report, &inst->zLoc);
-  uint16_t rzValue = read_axis_value(report, &inst->rzLoc);
-  uint16_t rxValue = read_axis_value(report, &inst->rxLoc);
-  uint16_t ryValue = read_axis_value(report, &inst->ryLoc);
+  // Als er een Report ID is, schuift het hele pakket met 1 byte op
+  uint8_t const* data = report;
+  if (inst->report_id) {
+    data++; 
+  }
+
+  // Uitlezen van assen (we gebruiken nu 'data' in plaats van 'report')
+  uint16_t xValue = read_axis_value(data, &inst->xLoc);
+  uint16_t yValue = read_axis_value(data, &inst->yLoc);
+  uint16_t zValue = read_axis_value(data, &inst->zLoc);
+  uint16_t rzValue = read_axis_value(data, &inst->rzLoc);
+  uint16_t rxValue = read_axis_value(data, &inst->rxLoc);
+  uint16_t ryValue = read_axis_value(data, &inst->ryLoc);
 
   uint8_t hatValue = 8;
   if (inst->hatLoc.bitMask) {
-    uint8_t rawHat = report[inst->hatLoc.byteIndex] & inst->hatLoc.bitMask;
+    uint8_t rawHat = data[inst->hatLoc.byteIndex] & inst->hatLoc.bitMask;
     hatValue = rawHat <= 8 ? rawHat : 8;
     current.all_direction |= HAT_SWITCH_TO_DIRECTION_BUTTONS[hatValue];
   }
@@ -265,7 +270,7 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   current.all_buttons = 0;
   for (int i = 0; i < MAX_BUTTONS; i++) {
     if (inst->buttonLoc[i].bitMask &&
-        (report[inst->buttonLoc[i].byteIndex] & inst->buttonLoc[i].bitMask)) {
+        (data[inst->buttonLoc[i].byteIndex] & inst->buttonLoc[i].bitMask)) {
       current.all_buttons |= (0x01 << i);
     }
   }
