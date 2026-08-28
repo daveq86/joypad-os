@@ -35,19 +35,22 @@ typedef struct
 
 typedef struct
 {
-  dinput_instance_t instances[5]; // CORECTE SYNTAX: Nu een echte array van 5 elementen
+  dinput_instance_t instances[5]; 
 } dinput_device_t;
 
 static dinput_device_t hid_devices[MAX_DEVICES] = { 0 };
 
+//(hat format, 8 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
 static const uint8_t HAT_SWITCH_TO_DIRECTION_BUTTONS[] = {0b0001, 0b0011, 0b0010, 0b0110, 0b0100, 0b1100, 0b1000, 0b1001, 0b0000};
 
+// Gets HID descriptor report item for specific ReportID
 static inline bool USB_GetHIDReportItemInfoWithReportId(const uint8_t *ReportData, HID_ReportItem_t *const ReportItem)
 {
   if (HID_DEBUG) TU_LOG1("ReportID: %d ", ReportItem->ReportID);
   return USB_GetHIDReportItemInfo(ReportItem->ReportID, ReportData, ReportItem);
 }
 
+// Parses HID descriptor into byteIndex/buttonMasks
 static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_t *info)
 {
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
@@ -76,7 +79,8 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
     uint16_t bitMask = ((0xFFFF >> (16 - bitSize)) << (bitOffset % 8)); 
     uint8_t byteIndex = (int)(bitOffset / 8); 
 
-    uint8_t report = { item->ReportID, 0 }; 
+    // CORECTE SYNTAX FIX: report is nu expliciet gedefinieerd als array!
+    uint8_t report[] = { item->ReportID, 0 }; 
     if (USB_GetHIDReportItemInfoWithReportId(report, item))
     {
       hid_devices[dev_addr].instances[instance].type = RAPHNET_WUSBMOTE;
@@ -131,6 +135,7 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
           }
           break;
         }
+
 
 //deel2
         case HID_USAGE_PAGE_BUTTON:
