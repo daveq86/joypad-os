@@ -26,7 +26,7 @@ typedef struct
   dinput_usage_t rxLoc;
   dinput_usage_t ryLoc;
   dinput_usage_t hatLoc;
-  dinput_usage_t buttonLoc[MAX_BUTTONS]; 
+  dinput_usage_t buttonLoc[MAX_BUTTONS]; // assuming a maximum of 16 buttons
   uint8_t buttonCnt;
   uint8_t type;
   bool xbox_axes;  
@@ -35,7 +35,7 @@ typedef struct
 // Cached device report properties on mount
 typedef struct
 {
-  dinput_instance_t instances[5]; // Hersteld naar array van 5 instances per apparaat
+  dinput_instance_t instances[5]; // HERSTELD: Dit moet een array zijn van 5 elementen!
 } dinput_device_t;
 
 static dinput_device_t hid_devices[MAX_DEVICES] = { 0 };
@@ -88,7 +88,7 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
     uint16_t bitMask = ((0xFFFF >> (16 - bitSize)) << (bitOffset % 8)); 
     uint8_t byteIndex = (int)(bitOffset / 8); 
 
-    uint8_t report[1] = {0}; // ERRORE HERSTELD: Nu een echte array pointer
+    uint8_t report[1] = {0}; 
     if (USB_GetHIDReportItemInfoWithReportId(report, item))
     {
       hid_devices[dev_addr].instances[instance].type = RAPHNET_WUSBMOTE;
@@ -143,6 +143,7 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
           }
           break;
         }
+//deel2
         case HID_USAGE_PAGE_BUTTON:
         {
           uint8_t usage = item->Attributes.Usage.Usage;
@@ -239,12 +240,13 @@ static uint8_t scale_axis(const dinput_usage_t *loc, uint16_t raw)
   return scale_analog_raphnet_wusbmote(raw, loc->max);
 }
 
+//deel3
 void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
 {
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
 
   uint32_t buttons = 0;
-  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; // 2D array hersteld
+  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; // HERSTELD: 2D array voor apparaten en instanties
   raphnet_wusbmote_state_t current = {0};
 
   dinput_instance_t *inst = &hid_devices[dev_addr].instances[instance];
@@ -278,7 +280,7 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   current.rx = inst->rxLoc.bitMask ? scale_axis(&inst->rxLoc, rxValue) : 0;
   current.ry = inst->ryLoc.bitMask ? scale_axis(&inst->ryLoc, ryValue) : 0;
 
-  // Controleer of knoppen zijn veranderd OF dat analoge sticks buiten de dode zone bewegen
+  // Gerichte vergelijking op basis van de herstelde previous array
   bool state_changed = (previous[dev_addr][instance].all_buttons != current.all_buttons) ||
                        (previous[dev_addr][instance].all_direction != current.all_direction) ||
                        (abs((int)previous[dev_addr][instance].x - (int)current.x) > DEAD_ZONE) ||
@@ -291,24 +293,24 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
     uint8_t buttonCount = inst->buttonCnt;
     if (buttonCount > MAX_BUTTONS) buttonCount = MAX_BUTTONS;
 
-    // DirectInput knoppen-indexering start bij bit 0 (Button 1) tot bit 15 (Button 16)
     buttons = 
       ((current.all_direction & 0b0001) ? JP_BUTTON_DU : 0) | 
       ((current.all_direction & 0b0010) ? JP_BUTTON_DR : 0) |
       ((current.all_direction & 0b0100) ? JP_BUTTON_DD : 0) |
       ((current.all_direction & 0b1000) ? JP_BUTTON_DL : 0) |
       
-      ((current.all_buttons & (1 << 0))  ? JP_BUTTON_B3 : 0) | // Button 1 (Y)
-      ((current.all_buttons & (1 << 1))  ? JP_BUTTON_B1 : 0) | // Button 2 (B)
-      ((current.all_buttons & (1 << 2))  ? JP_BUTTON_S1 : 0) | // Button 3 (Minus)
-      ((current.all_buttons & (1 << 3))  ? JP_BUTTON_S2 : 0) | // Button 4 (Plus)
-      ((current.all_buttons & (1 << 4))  ? JP_BUTTON_B2 : 0) | // Button 5 (A)
-      ((current.all_buttons & (1 << 5))  ? JP_BUTTON_B4 : 0) | // Button 6 (X)
-      ((current.all_buttons & (1 << 6))  ? JP_BUTTON_L2 : 0) | // Button 7 (L)
-      ((current.all_buttons & (1 << 7))  ? JP_BUTTON_R2 : 0) | // Button 8 (R)
-      ((current.all_buttons & (1 << 8))  ? JP_BUTTON_L1 : 0) | // Button 9 (ZL)
-      ((current.all_buttons & (1 << 9))  ? JP_BUTTON_R1 : 0) | // Button 10 (ZR)
-      ((current.all_buttons & (1 << 10)) ? JP_BUTTON_A4 : 0);  // Button 11 (Home)
+      ((current.all_buttons & (1 << 0))  ? JP_BUTTON_B3 : 0) | 
+      ((current.all_buttons & (1 << 1))  ? JP_BUTTON_B1 : 0) | 
+      ((current.all_buttons & (1 << 2))  ? JP_BUTTON_S1 : 0) | 
+      ((current.all_buttons & (1 << 3))  ? JP_BUTTON_S2 : 0) | 
+      ((current.all_buttons & (1 << 4))  ? JP_BUTTON_B2 : 0) | 
+      ((current.all_buttons & (1 << 5))  ? JP_BUTTON_B4 : 0) | 
+      
+      ((current.all_buttons & (1 << 6))  ? JP_BUTTON_L2 : 0) | 
+      ((current.all_buttons & (1 << 7))  ? JP_BUTTON_R2 : 0) | 
+      ((current.all_buttons & (1 << 8))  ? JP_BUTTON_L1 : 0) | 
+      ((current.all_buttons & (1 << 9))  ? JP_BUTTON_R1 : 0) | 
+      ((current.all_buttons & (1 << 10)) ? JP_BUTTON_A4 : 0);  
 
     uint8_t axis_x  = current.x;
     uint8_t axis_y  = current.y;
