@@ -5,6 +5,7 @@
 #include "core/router/router.h"
 #include "core/input_event.h"
 #include <string.h>
+#include <stdlib.h>
 
 #define RAPHNET_WUSBMOTE 3
 
@@ -236,12 +237,13 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
 
   uint32_t buttons = 0;
-  static raphnet_wusbmote_state_t previous[MAX_DEVICES]; 
+  // FIX: Expliciet gedefinieerd als 2D-array tegen compiler errors
+  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; 
   raphnet_wusbmote_state_t current = {0};
 
   dinput_instance_t *inst = &hid_devices[dev_addr].instances[instance];
 
-  // SYNTAX FIX: Controleer of de eerste byte matcht met het verwachte Report ID
+  // Controleer of de eerste byte matcht met het verwachte Report ID
   if (inst->report_id && report[0] != inst->report_id) {
     return;
   }
@@ -252,7 +254,7 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
     data++; 
   }
 
-  // Uitlezen van assen (we gebruiken nu 'data' in plaats van 'report')
+  // Uitlezen van assen via de gecorrigeerde data-pointer
   uint16_t xValue = read_axis_value(data, &inst->xLoc);
   uint16_t yValue = read_axis_value(data, &inst->yLoc);
   uint16_t zValue = read_axis_value(data, &inst->zLoc);
@@ -282,6 +284,7 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   current.rx = inst->rxLoc.bitMask ? scale_axis(&inst->rxLoc, rxValue) : 0;
   current.ry = inst->ryLoc.bitMask ? scale_axis(&inst->ryLoc, ryValue) : 0;
 
+  // FIX: previous maakt nu correct gebruik van de 2D-array [dev_addr][instance]
   bool state_changed = (previous[dev_addr][instance].all_buttons != current.all_buttons) ||
                        (previous[dev_addr][instance].all_direction != current.all_direction) ||
                        (abs((int)previous[dev_addr][instance].x - (int)current.x) > DEAD_ZONE) ||
@@ -354,6 +357,7 @@ DeviceInterface raphnet_wusbmote_interface = {
   .unmount = unmount_raphnet_wusbmote,
   .init = NULL,
 };
+
 
 
 //
