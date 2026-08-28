@@ -1,4 +1,4 @@
-// hid_gamepad.h
+// raphnet_wusbmote.h
 #ifndef RAPHNET_WUSBMOTE_H
 #define RAPHNET_WUSBMOTE_H
 
@@ -13,52 +13,17 @@
 #define MAX_BUTTONS 16
 #define HID_DEBUG 1
 
-typedef union
+// Schone en perfect uitgelijnde structuur voor stabiele memcmp-checks
+typedef struct
 {
-  struct
-  {
-    bool up : 1;
-    bool right : 1;
-    bool down : 1;
-    bool left : 1;
-
-    bool button1 : 1;
-    bool button2 : 1;
-    bool button3 : 1;
-    bool button4 : 1;
-
-    bool button5 : 1;
-    bool button6 : 1;
-    bool button7 : 1;
-    bool button8 : 1;
-
-    bool button9 : 1;
-    bool button10 : 1;
-    bool button11 : 1;
-    bool button12 : 1;
-
-    bool button13 : 1;
-    bool button14 : 1;
-    bool button15 : 1;
-    bool button16 : 1;
-
-    uint8_t x;
-    uint8_t y;
-    uint8_t z;
-    uint8_t rz;
-    uint8_t rx;
-    uint8_t ry;
-  };
-
-  struct
-  {
-    uint8_t all_direction : 4;
-    uint32_t all_buttons : 16;
-    uint32_t analog_sticks : 32;
-    uint16_t analog_triggers : 16;
-  };
-
-  uint64_t value : 64;
+  uint8_t all_direction; // Bevat de D-pad richting (bitmask via hat)
+  uint32_t all_buttons;  // Bevat alle controller knoppen (bits 0 tot 15)
+  uint8_t x;             // Linker stick X
+  uint8_t y;             // Linker stick Y
+  uint8_t z;             // Rechter stick X
+  uint8_t rz;            // Rechter stick Y
+  uint8_t rx;            // Linker analoge trigger
+  uint8_t ry;            // Rechter analoge trigger
 } raphnet_wusbmote_state_t;
 
 extern DeviceInterface raphnet_wusbmote_interface;
