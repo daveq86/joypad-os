@@ -12,11 +12,10 @@ typedef struct
 {
   uint8_t  byteIndex;
   uint16_t bitMask;
-  uint16_t max;   // logical maximum (16-bit is plenty for gamepad axes)
-  int16_t  min;   // logical minimum — <0 marks a signed/centered axis
+  uint16_t max;   
+  int16_t  min;   
 } dinput_usage_t;
 
-// Generic HID instance state
 typedef struct
 {
   dinput_usage_t xLoc;
@@ -26,59 +25,48 @@ typedef struct
   dinput_usage_t rxLoc;
   dinput_usage_t ryLoc;
   dinput_usage_t hatLoc;
-  dinput_usage_t buttonLoc[MAX_BUTTONS]; // assuming a maximum of 16 buttons
+  dinput_usage_t buttonLoc[MAX_BUTTONS]; 
   uint8_t buttonCnt;
   uint8_t type;
   bool xbox_axes;  
+  uint8_t report_id; // Toegevoegd: sla het Report ID van dit apparaat op
 } dinput_instance_t;
 
-// Cached device report properties on mount
 typedef struct
 {
-  dinput_instance_t instances[5]; // HERSTELD: Dit moet een array zijn van 5 elementen!
+  dinput_instance_t instances[5]; // Expliciet hersteld naar een array van 5 instanties
 } dinput_device_t;
 
 static dinput_device_t hid_devices[MAX_DEVICES] = { 0 };
 
-//(hat format, 8 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
 static const uint8_t HAT_SWITCH_TO_DIRECTION_BUTTONS[] = {0b0001, 0b0011, 0b0010, 0b0110, 0b0100, 0b1100, 0b1000, 0b1001, 0b0000};
 
-// Gets HID descriptor report item for specific ReportID
 static inline bool USB_GetHIDReportItemInfoWithReportId(const uint8_t *ReportData, HID_ReportItem_t *const ReportItem)
 {
   if (HID_DEBUG) TU_LOG1("ReportID: %d ", ReportItem->ReportID);
-  if (ReportItem->ReportID)
-  {
-    ReportData++;
-  }
   return USB_GetHIDReportItemInfo(ReportItem->ReportID, ReportData, ReportItem);
 }
 
-// Parses HID descriptor into byteIndex/buttonMasks
 static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_t *info)
 {
-  if (dev_addr >= MAX_DEVICES || instance >= 5) {
-    return;
-  }
-
-  if (info == NULL || info->FirstReportItem == NULL) {
-    return;
-  }
+  if (dev_addr >= MAX_DEVICES || instance >= 5) return;
+  if (info == NULL || info->FirstReportItem == NULL) return;
 
   HID_ReportItem_t *item = info->FirstReportItem;
   uint8_t btns_count = 0;
   uint8_t idOffset = 0;
 
+  // Sla het daadwerkelijke Report ID op uit de descriptor
+  hid_devices[dev_addr].instances[instance].report_id = item->ReportID;
+
   if (item->ReportID)
   {
-    TU_LOG1("ReportID in report = %04x\r\n", item->ReportID);
     idOffset = 8;
   }
 
   while (item)
   {
     uint8_t bitSize = item->Attributes.BitSize ? item->Attributes.BitSize : 0; 
-    
     if (bitSize == 0 || bitSize > 16) {
       item = item->Next;
       continue; 
@@ -88,7 +76,8 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
     uint16_t bitMask = ((0xFFFF >> (16 - bitSize)) << (bitOffset % 8)); 
     uint8_t byteIndex = (int)(bitOffset / 8); 
 
-    uint8_t report[1] = {0}; 
+    // Gebruik het echte Report ID om de info te matchen
+    uint8_t report[2] = { item->ReportID, 0 }; 
     if (USB_GetHIDReportItemInfoWithReportId(report, item))
     {
       hid_devices[dev_addr].instances[instance].type = RAPHNET_WUSBMOTE;
@@ -143,6 +132,7 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
           }
           break;
         }
+
 //deel2
         case HID_USAGE_PAGE_BUTTON:
         {
@@ -246,11 +236,18 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
 
   uint32_t buttons = 0;
-  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; // HERSTELD: 2D array voor apparaten en instanties
+  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; // Correcte 2D array initialisatie
   raphnet_wusbmote_state_t current = {0};
 
   dinput_instance_t *inst = &hid_devices[dev_addr].instances[instance];
 
+  // Als de adapter een Report ID gebruikt EN het eerste binnengekomen byte matcht niet met dit ID,
+  // dan is dit niet het juiste datapakket.
+  if (inst->report_id && report[0] != inst->report_id) {
+    return;
+  }
+
+  // Uitlezen van assen en knoppen
   uint16_t xValue = read_axis_value(report, &inst->xLoc);
   uint16_t yValue = read_axis_value(report, &inst->yLoc);
   uint16_t zValue = read_axis_value(report, &inst->zLoc);
@@ -280,7 +277,6 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   current.rx = inst->rxLoc.bitMask ? scale_axis(&inst->rxLoc, rxValue) : 0;
   current.ry = inst->ryLoc.bitMask ? scale_axis(&inst->ryLoc, ryValue) : 0;
 
-  // Gerichte vergelijking op basis van de herstelde previous array
   bool state_changed = (previous[dev_addr][instance].all_buttons != current.all_buttons) ||
                        (previous[dev_addr][instance].all_direction != current.all_direction) ||
                        (abs((int)previous[dev_addr][instance].x - (int)current.x) > DEAD_ZONE) ||
@@ -322,6 +318,40 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
     trigger_l = (trigger_l > 145) ? ((trigger_l - 141) * 255) / (249 - 141) : 0;
     trigger_r = (trigger_r > 145) ? ((trigger_r - 141) * 255) / (239 - 141) : 0;
 
+    ensureAllNonZero(&axis_x, &axis_y, &axis_z, &axis_rz);
+
+    input_event_t event = {
+      .dev_addr = dev_addr,
+      .instance = instance,
+      .type = INPUT_TYPE_GAMEPAD,
+      .transport = INPUT_TRANSPORT_USB,
+      .buttons = buttons,
+      .button_count = buttonCount,
+      .analog = {axis_x, axis_y, axis_z, axis_rz, trigger_l, trigger_r},
+      .keys = 0,
+    };
+    router_submit_input(&event);
+  }
+}
+
+void unmount_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance)
+{
+  if (dev_addr < MAX_DEVICES && instance < 5) {
+    memset(&hid_devices[dev_addr].instances[instance], 0, sizeof(dinput_instance_t));
+  }
+}
+
+DeviceInterface raphnet_wusbmote_interface = {
+  .name = "Raphnet WUSBMote",
+  .is_device = is_raphnet_wusbmote,
+  .check_descriptor = parse_raphnet_wusbmote,
+  .process = process_raphnet_wusbmote,
+  .unmount = unmount_raphnet_wusbmote,
+  .init = NULL,
+};
+
+
+//
 //    buttons = // 1. Jouw 11 knoppen op pc-posities (Xbox-stijl):
 //                ((current.button13) ? JP_BUTTON_DU : 0) | // button13 =  Up (Dpad)
 //                ((current.button14) ? JP_BUTTON_DD : 0) | // button14 =  Down (Dpad)
@@ -357,35 +387,3 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
 //    ? ((trigger_r - 141) * 255) / (239 - 141)
 //    : 0;
 
-    // keep analog within range [1-255]
-    ensureAllNonZero(&axis_x, &axis_y, &axis_z, &axis_rz);
-
-    input_event_t event = {
-      .dev_addr = dev_addr,
-      .instance = instance,
-      .type = INPUT_TYPE_GAMEPAD,
-      .transport = INPUT_TRANSPORT_USB,
-      .buttons = buttons,
-      .button_count = buttonCount,
-      .analog = {axis_x, axis_y, axis_z, axis_rz, trigger_l, trigger_r},
-      .keys = 0,
-    };
-    router_submit_input(&event);
-  }
-}
-
-void unmount_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance)
-{
-  if (dev_addr < MAX_DEVICES && instance < 5) {
-    memset(&hid_devices[dev_addr].instances[instance], 0, sizeof(dinput_instance_t));
-  }
-}
-
-DeviceInterface raphnet_wusbmote_interface = {
-  .name = "Raphnet WUSBMote",
-  .is_device = is_raphnet_wusbmote,
-  .check_descriptor = parse_raphnet_wusbmote,
-  .process = process_raphnet_wusbmote,
-  .unmount = unmount_raphnet_wusbmote,
-  .init = NULL,
-};
