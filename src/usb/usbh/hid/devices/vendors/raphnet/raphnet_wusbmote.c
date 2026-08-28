@@ -16,8 +16,8 @@ typedef struct
   int16_t  min;   // logical minimum — <0 marks a signed/centered axis
 } dinput_usage_t;
 
-// Generic HID instance state
-typedef struct TU_ATTR_PACKED
+// Generic HID instance state (TU_ATTR_PACKED weggehaald tegen unaligned pointers)
+typedef struct
 {
   dinput_usage_t xLoc;
   dinput_usage_t yLoc;
@@ -33,7 +33,7 @@ typedef struct TU_ATTR_PACKED
 } dinput_instance_t;
 
 // Cached device report properties on mount
-typedef struct TU_ATTR_PACKED
+typedef struct
 {
   dinput_instance_t instances[5]; // Vaste array-grootte om struct-fouten te voorkomen
 } dinput_device_t;
@@ -54,7 +54,7 @@ static inline bool USB_GetHIDReportItemInfoWithReportId(const uint8_t *ReportDat
   return USB_GetHIDReportItemInfo(ReportItem->ReportID, ReportData, ReportItem);
 }
 
-// Parses HID descriptor into byteIndex/buttonMasks (ontvangt info nu als argument!)
+// Parses HID descriptor into byteIndex/buttonMasks
 static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_t *info)
 {
   if (dev_addr >= MAX_DEVICES || instance >= 5) {
@@ -88,7 +88,7 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
     uint16_t bitMask = ((0xFFFF >> (16 - bitSize)) << (bitOffset % 8)); 
     uint8_t byteIndex = (int)(bitOffset / 8); 
 
-    uint8_t report = {0}; 
+    uint8_t report[1] = {0}; // ERRORE HERSTELD: Nu een echte array pointer
     if (USB_GetHIDReportItemInfoWithReportId(report, item))
     {
       hid_devices[dev_addr].instances[instance].type = RAPHNET_WUSBMOTE;
@@ -138,26 +138,6 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
           case HID_USAGE_DESKTOP_HAT_SWITCH:
             hid_devices[dev_addr].instances[instance].hatLoc.byteIndex = byteIndex;
             hid_devices[dev_addr].instances[instance].hatLoc.bitMask = bitMask;
-            break;
-          default: break;
-          }
-          break;
-        }
-        case HID_USAGE_PAGE_SIMULATE:
-        {
-          switch (item->Attributes.Usage.Usage)
-          {
-          case 0xC5: // Brake
-            hid_devices[dev_addr].instances[instance].rxLoc.byteIndex = byteIndex;
-            hid_devices[dev_addr].instances[instance].rxLoc.bitMask = bitMask;
-            hid_devices[dev_addr].instances[instance].rxLoc.max = item->Attributes.Logical.Maximum;
-            hid_devices[dev_addr].instances[instance].rxLoc.min = item->Attributes.Logical.Minimum;
-            break;
-          case 0xC4: // Accelerator
-            hid_devices[dev_addr].instances[instance].ryLoc.byteIndex = byteIndex;
-            hid_devices[dev_addr].instances[instance].ryLoc.bitMask = bitMask;
-            hid_devices[dev_addr].instances[instance].ryLoc.max = item->Attributes.Logical.Maximum;
-            hid_devices[dev_addr].instances[instance].ryLoc.min = item->Attributes.Logical.Minimum;
             break;
           default: break;
           }
