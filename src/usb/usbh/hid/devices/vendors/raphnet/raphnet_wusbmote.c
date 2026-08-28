@@ -5,7 +5,7 @@
 #include "core/router/router.h"
 #include "core/input_event.h"
 #include <string.h>
-#include <stdlib.h> // Toegevoegd voor abs()
+#include <stdlib.h> 
 
 #define RAPHNET_WUSBMOTE 3
 
@@ -13,11 +13,10 @@ typedef struct
 {
   uint8_t  byteIndex;
   uint16_t bitMask;
-  uint16_t max;   // logical maximum (16-bit is plenty for gamepad axes)
-  int16_t  min;   // logical minimum — <0 marks a signed/centered axis
+  uint16_t max;   
+  int16_t  min;   
 } dinput_usage_t;
 
-// Generic HID instance state
 typedef struct
 {
   dinput_usage_t xLoc;
@@ -27,32 +26,28 @@ typedef struct
   dinput_usage_t rxLoc;
   dinput_usage_t ryLoc;
   dinput_usage_t hatLoc;
-  dinput_usage_t buttonLoc[MAX_BUTTONS]; // assuming a maximum of 16 buttons
+  dinput_usage_t buttonLoc[MAX_BUTTONS]; 
   uint8_t buttonCnt;
   uint8_t type;
   bool xbox_axes;  
   uint8_t report_id;
 } dinput_instance_t;
 
-// Cached device report properties on mount
 typedef struct
 {
-  dinput_instance_t instances[5]; // CRUCIALE FIX: Nu een echte array van 5 instanties!
+  dinput_instance_t instances[5]; // CORECTE SYNTAX: Nu een echte array van 5 elementen
 } dinput_device_t;
 
 static dinput_device_t hid_devices[MAX_DEVICES] = { 0 };
 
-//(hat format, 8 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
 static const uint8_t HAT_SWITCH_TO_DIRECTION_BUTTONS[] = {0b0001, 0b0011, 0b0010, 0b0110, 0b0100, 0b1100, 0b1000, 0b1001, 0b0000};
 
-// Gets HID descriptor report item for specific ReportID
 static inline bool USB_GetHIDReportItemInfoWithReportId(const uint8_t *ReportData, HID_ReportItem_t *const ReportItem)
 {
   if (HID_DEBUG) TU_LOG1("ReportID: %d ", ReportItem->ReportID);
   return USB_GetHIDReportItemInfo(ReportItem->ReportID, ReportData, ReportItem);
 }
 
-// Parses HID descriptor into byteIndex/buttonMasks
 static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_t *info)
 {
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
@@ -81,7 +76,7 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
     uint16_t bitMask = ((0xFFFF >> (16 - bitSize)) << (bitOffset % 8)); 
     uint8_t byteIndex = (int)(bitOffset / 8); 
 
-    uint8_t report[2] = { item->ReportID, 0 }; 
+    uint8_t report = { item->ReportID, 0 }; 
     if (USB_GetHIDReportItemInfoWithReportId(report, item))
     {
       hid_devices[dev_addr].instances[instance].type = RAPHNET_WUSBMOTE;
@@ -240,16 +235,17 @@ void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const*
   if (dev_addr >= MAX_DEVICES || instance >= 5) return;
 
   uint32_t buttons = 0;
-  // FIX: Nu gedefinieerd als een volwaardige 2D-array [MAX_DEVICES][5]
   static raphnet_wusbmote_state_t previous[MAX_DEVICES][5]; 
   raphnet_wusbmote_state_t current = {0};
 
   dinput_instance_t *inst = &hid_devices[dev_addr].instances[instance];
 
+  // VEILIGE CHECK: Controleer de WAARDE van de eerste byte als er een Report ID is
   if (inst->report_id && report[0] != inst->report_id) {
     return;
   }
 
+  // Verschuif de data-pointer met 1 byte als het rapport begint met een Report ID byte
   uint8_t const* data = report;
   if (inst->report_id) {
     data++; 
@@ -356,6 +352,7 @@ DeviceInterface raphnet_wusbmote_interface = {
   .unmount = unmount_raphnet_wusbmote,
   .init = NULL,
 };
+
 
 
 
