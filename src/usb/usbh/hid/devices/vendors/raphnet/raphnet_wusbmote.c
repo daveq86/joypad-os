@@ -97,13 +97,28 @@ static void parse_descriptor(uint8_t dev_addr, uint8_t instance, HID_ReportInfo_
 
 
 //deel2
+        case HID_USAGE_PAGE_BUTTON:
+        {
+          uint8_t usage = item->Attributes.Usage.Usage;
+          if (usage >= 1 && usage <= MAX_BUTTONS) {
+            hid_devices[dev_addr].instances[instance].buttonLoc[usage - 1].byteIndex = byteIndex;
+            hid_devices[dev_addr].instances[instance].buttonLoc[usage - 1].bitMask = bitMask;
+          }
+          btns_count++;
+          break;
+        }
+        default: break;
+      }
+    }
+    item = item->Next;
+  }
+
+  hid_devices[dev_addr].instances[instance].buttonCnt = btns_count;
+}
+
 bool is_raphnet_wusbmote(uint16_t vid, uint16_t pid)
 {
-  bool match = (vid == 0x289B && pid == 0x0080);
-  if (match) {
-    TU_LOG1("[RAPHNET] Adapter gevonden! VID: 0x%04X, PID: 0x%04X\r\n", vid, pid);
-  }
-  return match;
+  return (vid == 0x289B && pid == 0x0080);
 }
 
 bool parse_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len)
@@ -115,29 +130,34 @@ bool parse_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* d
   {
     parse_descriptor(dev_addr, instance, local_info);
   }
-  else
-  {
-    TU_LOG1("[RAPHNET] Fout: USB_ProcessHIDReport mislukt met code: %d\r\n", ret);
-  }
 
   if (local_info != NULL) {
     USB_FreeReportInfo(local_info);
   }
 
-  // Controleer of de driver succesvol geactiveerd wordt
   if (dev_addr < MAX_DEVICES && instance < 5 &&
       hid_devices[dev_addr].instances[instance].buttonCnt > 0 &&
       hid_devices[dev_addr].instances[instance].type == RAPHNET_WUSBMOTE) {
-    
-    TU_LOG1("[RAPHNET] Profiel SUCCESVOL geladen! Aantal knoppen gevonden: %d\r\n", 
-            hid_devices[dev_addr].instances[instance].buttonCnt);
     return true;  
   }
 
-  TU_LOG1("[RAPHNET] Profiel GEWEIGERD. Knoppen in descriptor: %d\r\n", 
-          hid_devices[dev_addr].instances[instance].buttonCnt);
   return false;
 }
+
+static uint16_t read_axis_value(const uint8_t *report, const dinput_usage_t *loc)
+{
+  if (!loc->bitMask) return 0;
+
+  if (loc->bitMask > 0xFF) {
+    uint16_t combined = (uint16_t)report[loc->byteIndex] | ((uint16_t)report[loc->byteIndex + 1] << 8);
+    uint16_t masked = combined & loc->bitMask;
+    return masked >> __builtin_ctz(loc->bitMask);
+  } else {
+    uint8_t masked = report[loc->byteIndex] & loc->bitMask;
+    return masked >> __builtin_ctz(loc->bitMask);
+  }
+}
+
 
 //deel3
 void process_raphnet_wusbmote(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len)
