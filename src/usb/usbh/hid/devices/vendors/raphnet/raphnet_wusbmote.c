@@ -1287,7 +1287,7 @@ void raphnet_wusbmote_unmount(
 // Raphnet Wusbmote device interface
 DeviceInterface raphnet_wusbmote_interface = {
   .name = "Raphnet Wusbmote",
-  .is_device = raphnet_wusbmote_is_device,
+  .is_device = is_raphnet_wusbmote,
   .check_descriptor = NULL,
   .process = NULL,
   .unmount = raphnet_wusbmote_unmount,
