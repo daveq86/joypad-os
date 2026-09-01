@@ -682,9 +682,9 @@ void process_wusbmote(
 {
   uint32_t buttons = 0;
 
-  static dinput_gamepad_t previous[MAX_DEVICES][5];
+  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5];
 
-  dinput_gamepad_t current = {0};
+  raphnet_wusbmote_state_t current = {0};
   current.value = 0;
 
   dinput_instance_t *inst =

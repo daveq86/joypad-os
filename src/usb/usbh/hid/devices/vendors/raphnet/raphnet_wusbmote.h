@@ -66,7 +66,7 @@ typedef union
 
   uint64_t value : 64;
 
-} dinput_gamepad_t;
+} raphnet_wusbmote_state_t;
 
 extern DeviceInterface raphnet_wusbmote_interface;
 
