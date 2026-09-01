@@ -1,6 +1,6 @@
 // raphnet_wusbmote.c
 #include "raphnet_wusbmote.h"
-#include "hid_parser.h"
+#include "../../generic/hid_parser.h"
 #include "core/buttons.h"
 #include "core/router/router.h"
 #include "core/input_event.h"
