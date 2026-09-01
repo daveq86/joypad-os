@@ -2,8 +2,8 @@
 #ifndef WUSMOTE_HEADER_H
 #define WUSMOTE_HEADER_H
 
-#include "../../hid_device.h"
-#include "../../hid_utils.h"
+#include "../../../hid_device.h"
+#include "../../../hid_utils.h"
 #include "tusb.h"
 
 #define INVALID_REPORT_ID -1
