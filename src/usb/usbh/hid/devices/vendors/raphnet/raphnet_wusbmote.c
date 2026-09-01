@@ -1133,7 +1133,7 @@ void unmount_wusmote(
 
 
 // Wusmote device interface
-DeviceInterface wusmote_interface = {
+DeviceInterface raphnet_wusbmote_interface = {
   .name = "Wusmote",
   .is_device = is_wusmote,
   .check_descriptor = parse_wusmote,

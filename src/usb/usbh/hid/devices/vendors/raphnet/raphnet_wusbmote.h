@@ -68,6 +68,6 @@ typedef union
 
 } dinput_gamepad_t;
 
-extern DeviceInterface wusmote_interface;
+extern DeviceInterface raphnet_wusbmote_interface;
 
 #endif
