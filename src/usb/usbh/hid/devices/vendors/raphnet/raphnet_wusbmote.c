@@ -603,6 +603,15 @@ bool raphnet_wusbmote_parse(
   uint8_t const* desc_report,
   uint16_t desc_len)
 {
+  TU_LOG1(
+    "WUSBMOTE: starting HID descriptor parse\r\n"
+  );
+
+  TU_LOG1(
+    "WUSBMOTE: descriptor length = %d\r\n",
+    desc_len
+  );
+
   uint8_t ret =
     USB_ProcessHIDReport(
       dev_addr,
@@ -612,31 +621,48 @@ bool raphnet_wusbmote_parse(
       &(raphnet_wusbmote_info)
     );
 
+  TU_LOG1(
+    "WUSBMOTE: USB_ProcessHIDReport returned %d\r\n",
+    ret
+  );
+
   if (ret == HID_PARSE_Successful)
   {
+    TU_LOG1(
+      "WUSBMOTE: descriptor parse successful\r\n"
+    );
+
+    TU_LOG1(
+      "WUSBMOTE: starting raphnet_wusbmote_parse_descriptor()\r\n"
+    );
+
     raphnet_wusbmote_parse_descriptor(
       dev_addr,
       instance
+    );
+
+    TU_LOG1(
+      "WUSBMOTE: parse_descriptor finished\r\n"
     );
   }
   else
   {
     TU_LOG1(
-      "Error: USB_ProcessHIDReport failed: %d\r\n",
+      "WUSBMOTE: ERROR USB_ProcessHIDReport failed: %d\r\n",
       ret
     );
   }
 
-
-  // free up memory for next report to be parsed
   USB_FreeReportInfo(
     raphnet_wusbmote_info
   );
 
   raphnet_wusbmote_info = NULL;
 
+  TU_LOG1(
+    "WUSBMOTE: report info freed\r\n"
+  );
 
-  // assume it is d-input device if buttons exist on report
   if (
     raphnet_wusbmote_devices[dev_addr]
       .instances[instance]
@@ -647,12 +673,19 @@ bool raphnet_wusbmote_parse(
       .type == HID_GAMEPAD
   )
   {
+    TU_LOG1(
+      "WUSBMOTE: detected as gamepad\r\n"
+    );
+
     return true;
   }
 
+  TU_LOG1(
+    "WUSBMOTE: NOT detected as gamepad\r\n"
+  );
+
   return false;
 }
-
 
 // scales down switch analog value to a single byte
 uint8_t raphnet_wusbmote_scale_analog(
