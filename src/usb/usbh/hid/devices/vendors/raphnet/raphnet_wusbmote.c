@@ -1,14 +1,10 @@
-// wusbmote.c
+// raphnet_wusbmote.c
 #include "raphnet_wusbmote.h"
-#include "../../generic/hid_parser.h"
+#include "hid_parser.h"
 #include "core/buttons.h"
 #include "core/router/router.h"
 #include "core/input_event.h"
 #include <string.h>
-
-// Voeg hier de juiste VID/PID van jouw controller toe.
-#define WUSBMOTE_VID 0x289B
-#define WUSBMOTE_PID 0x0080
 
 typedef struct
 {
@@ -16,37 +12,45 @@ typedef struct
   uint16_t bitMask;
   uint16_t max;   // logical maximum (16-bit is plenty for gamepad axes)
   int16_t  min;   // logical minimum — <0 marks a signed/centered axis
-} dinput_usage_t;
+} raphnet_wusbmote_usage_t;
 
-// wusbmote HID instance state
+
+// Raphnet Wusbmote HID instance state
 typedef struct TU_ATTR_PACKED
 {
-  dinput_usage_t xLoc;
-  dinput_usage_t yLoc;
-  dinput_usage_t zLoc;
-  dinput_usage_t rzLoc;
-  dinput_usage_t rxLoc;
-  dinput_usage_t ryLoc;
-  dinput_usage_t hatLoc;
-  dinput_usage_t buttonLoc[MAX_BUTTONS];
+  raphnet_wusbmote_usage_t xLoc;
+  raphnet_wusbmote_usage_t yLoc;
+  raphnet_wusbmote_usage_t zLoc;
+  raphnet_wusbmote_usage_t rzLoc;
+  raphnet_wusbmote_usage_t rxLoc;
+  raphnet_wusbmote_usage_t ryLoc;
+  raphnet_wusbmote_usage_t hatLoc;
+  raphnet_wusbmote_usage_t buttonLoc[MAX_BUTTONS];
   uint8_t buttonCnt;
   uint8_t type;
   bool xbox_axes;  // Xbox HID convention: Rx/Ry=right stick, Z=triggers
-} dinput_instance_t;
+} raphnet_wusbmote_instance_t;
+
 
 // Cached device report properties on mount
 typedef struct TU_ATTR_PACKED
 {
-  dinput_instance_t instances[CFG_TUH_HID];
-} dinput_device_t;
+  raphnet_wusbmote_instance_t instances[CFG_TUH_HID];
+} raphnet_wusbmote_device_t;
 
-static dinput_device_t hid_devices[MAX_DEVICES] = { 0 };
 
-// hid_parser info
-HID_ReportInfo_t *info;
+static raphnet_wusbmote_device_t
+  raphnet_wusbmote_devices[MAX_DEVICES] = { 0 };
 
-// (hat format, 8 is released, 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW)
-static const uint8_t HAT_SWITCH_TO_DIRECTION_BUTTONS[] =
+
+// HID parser info
+static HID_ReportInfo_t *raphnet_wusbmote_info;
+
+
+// (hat format, 8 is released, 0=N, 1=NE, 2=E, 3=SE,
+//  4=S, 5=SW, 6=W, 7=NW)
+static const uint8_t
+  RAPHNET_WUSBMOTE_HAT_SWITCH_TO_DIRECTION_BUTTONS[] =
 {
   0b0001,
   0b0011,
@@ -58,14 +62,17 @@ static const uint8_t HAT_SWITCH_TO_DIRECTION_BUTTONS[] =
   0b1001,
   0b0000
 };
-
 // Gets HID descriptor report item for specific ReportID
-static inline bool USB_GetHIDReportItemInfoWithReportId(
+static inline bool
+raphnet_wusbmote_get_hid_report_item_info_with_report_id(
   const uint8_t *ReportData,
   HID_ReportItem_t *const ReportItem)
 {
   if (HID_DEBUG)
-    TU_LOG1("ReportID: %d ", ReportItem->ReportID);
+    TU_LOG1(
+      "ReportID: %d ",
+      ReportItem->ReportID
+    );
 
   if (ReportItem->ReportID)
   {
@@ -82,10 +89,14 @@ static inline bool USB_GetHIDReportItemInfoWithReportId(
   );
 }
 
+
 // Parses HID descriptor into byteIndex/buttonMasks
-void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
+void raphnet_wusbmote_parse_descriptor(
+  uint8_t dev_addr,
+  uint8_t instance)
 {
-  HID_ReportItem_t *item = info->FirstReportItem;
+  HID_ReportItem_t *item =
+    raphnet_wusbmote_info->FirstReportItem;
 
   // iterate filtered reports info to match report from data
   uint8_t btns_count = 0;
@@ -114,10 +125,13 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
       : 0;
 
     uint8_t bitOffset =
-      (item->BitOffset ? item->BitOffset : 0) + idOffset;
+      (item->BitOffset
+       ? item->BitOffset
+       : 0) + idOffset;
 
     uint16_t bitMask =
-      ((0xFFFF >> (16 - bitSize)) << bitOffset % 8);
+      ((0xFFFF >> (16 - bitSize))
+       << bitOffset % 8);
 
     uint8_t byteIndex =
       (int)(bitOffset / 8);
@@ -159,17 +173,19 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
         byteIndex
       );
     }
-
     // TODO: this is limiting to reportId 0..
     // Need to parse reportId and match later with received reports.
-    // Also helpful if multiple reportId maps can be saved per instance and
-    // report as individual players for single instance HID reports that
-    // contain multiple reportIds.
+    // Also helpful if multiple reportId maps can be saved per instance
+    // and report as individual players for single instance HID reports
+    // that contain multiple reportIds.
 
     uint8_t report[1] = {0};
 
-    // reportId = 0; original ex maps report to descriptor data structure
-    if (USB_GetHIDReportItemInfoWithReportId(report, item))
+    // reportId = 0;
+    // original ex maps report to descriptor data structure
+    if (raphnet_wusbmote_get_hid_report_item_info_with_report_id(
+          report,
+          item))
     {
       if (HID_DEBUG)
         TU_LOG1(
@@ -177,8 +193,8 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
           item->Attributes.Usage.Page
         );
 
-      hid_devices[dev_addr].instances[instance].type =
-        HID_GAMEPAD;
+      raphnet_wusbmote_devices[dev_addr]
+        .instances[instance].type = HID_GAMEPAD;
 
       switch (item->Attributes.Usage.Page)
       {
@@ -189,10 +205,12 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_WHEEL:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_WHEEL ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_WHEEL "
+                );
 
-              hid_devices[dev_addr].instances[instance].type =
-                HID_MOUSE;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].type = HID_MOUSE;
 
               break;
             }
@@ -200,10 +218,12 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_MOUSE:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_MOUSE ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_MOUSE "
+                );
 
-              hid_devices[dev_addr].instances[instance].type =
-                HID_MOUSE;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].type = HID_MOUSE;
 
               break;
             }
@@ -211,10 +231,12 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_KEYBOARD:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_KEYBOARD ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_KEYBOARD "
+                );
 
-              hid_devices[dev_addr].instances[instance].type =
-                HID_KEYBOARD;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].type = HID_KEYBOARD;
 
               break;
             }
@@ -222,19 +244,25 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_X:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_X ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_X "
+                );
 
-              hid_devices[dev_addr].instances[instance].xLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].xLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].xLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].xLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].xLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].xLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].xLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].xLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -242,39 +270,50 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_Y:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_Y ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_Y "
+                );
 
-              hid_devices[dev_addr].instances[instance].yLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].yLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].yLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].yLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].yLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].yLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].yLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].yLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
-
             case HID_USAGE_DESKTOP_Z:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_Z ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_Z "
+                );
 
-              hid_devices[dev_addr].instances[instance].zLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].zLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].zLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].zLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].zLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].zLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].zLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].zLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -282,19 +321,25 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_RZ:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_RZ ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_RZ "
+                );
 
-              hid_devices[dev_addr].instances[instance].rzLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rzLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].rzLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rzLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].rzLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rzLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].rzLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rzLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -302,19 +347,25 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_RX:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_RX ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_RX "
+                );
 
-              hid_devices[dev_addr].instances[instance].rxLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].rxLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].rxLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].rxLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -322,19 +373,25 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_RY:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_RY ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_RY "
+                );
 
-              hid_devices[dev_addr].instances[instance].ryLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].ryLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].ryLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].ryLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -342,13 +399,17 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             case HID_USAGE_DESKTOP_HAT_SWITCH:
             {
               if (HID_DEBUG)
-                TU_LOG1(" HID_USAGE_DESKTOP_HAT_SWITCH ");
+                TU_LOG1(
+                  " HID_USAGE_DESKTOP_HAT_SWITCH "
+                );
 
-              hid_devices[dev_addr].instances[instance].hatLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].hatLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].hatLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].hatLoc.bitMask =
+                  bitMask;
 
               break;
             }
@@ -370,10 +431,11 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
 
         case HID_USAGE_PAGE_SIMULATE:
         {
-          // Xbox-style analog triggers live on Simulation Controls:
+          // Xbox-style analog triggers live on
+          // Simulation Controls:
           // Brake (0xC5) and Accelerator (0xC4).
-          // Map them onto the trigger locs (rx=L2, ry=R2).
-          // — same slots the Generic Desktop RX/RY path uses.
+          // Map them onto the trigger locs
+          // (rx=L2, ry=R2).
 
           switch (item->Attributes.Usage.Usage)
           {
@@ -381,17 +443,21 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             {
               // Brake -> Left trigger (L2)
 
-              hid_devices[dev_addr].instances[instance].rxLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].rxLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].rxLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].rxLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].rxLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -400,17 +466,21 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             {
               // Accelerator -> Right trigger (R2)
 
-              hid_devices[dev_addr].instances[instance].ryLoc.byteIndex =
-                byteIndex;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.byteIndex =
+                  byteIndex;
 
-              hid_devices[dev_addr].instances[instance].ryLoc.bitMask =
-                bitMask;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.bitMask =
+                  bitMask;
 
-              hid_devices[dev_addr].instances[instance].ryLoc.max =
-                item->Attributes.Logical.Maximum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.max =
+                  item->Attributes.Logical.Maximum;
 
-              hid_devices[dev_addr].instances[instance].ryLoc.min =
-                item->Attributes.Logical.Minimum;
+              raphnet_wusbmote_devices[dev_addr]
+                .instances[instance].ryLoc.min =
+                  item->Attributes.Logical.Minimum;
 
               break;
             }
@@ -421,23 +491,25 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
 
           break;
         }
-
         case HID_USAGE_PAGE_BUTTON:
         {
           if (HID_DEBUG)
-            TU_LOG1(" HID_USAGE_PAGE_BUTTON ");
+            TU_LOG1(
+              " HID_USAGE_PAGE_BUTTON "
+            );
 
           uint8_t usage =
             item->Attributes.Usage.Usage;
 
-          if (usage >= 1 && usage <= MAX_BUTTONS)
+          if (usage >= 1 &&
+              usage <= MAX_BUTTONS)
           {
-            hid_devices[dev_addr]
+            raphnet_wusbmote_devices[dev_addr]
               .instances[instance]
               .buttonLoc[usage - 1]
               .byteIndex = byteIndex;
 
-            hid_devices[dev_addr]
+            raphnet_wusbmote_devices[dev_addr]
               .instances[instance]
               .buttonLoc[usage - 1]
               .bitMask = bitMask;
@@ -449,7 +521,6 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
         }
 
         default:
-        {
           if (HID_DEBUG)
             TU_LOG1(
               " HID_USAGE_PAGE_NOT_HANDLED 0x%x",
@@ -457,7 +528,6 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
             );
 
           break;
-        }
       }
     }
 
@@ -467,9 +537,11 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
       TU_LOG1("\n\n");
   }
 
-  hid_devices[dev_addr]
-    .instances[instance]
-    .buttonCnt = btns_count;
+
+  raphnet_wusbmote_devices[dev_addr]
+    .instances[instance].buttonCnt =
+      btns_count;
+
 
   // Detect Xbox HID axis convention:
   // Rx/Ry present (right stick) but no Rz
@@ -482,8 +554,9 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
   // Rx/Ry = right stick
   // Z = triggers
 
-  dinput_instance_t *inst =
-    &hid_devices[dev_addr].instances[instance];
+  raphnet_wusbmote_instance_t *inst =
+    &raphnet_wusbmote_devices[dev_addr]
+      .instances[instance];
 
   if (inst->rxLoc.max &&
       inst->ryLoc.max &&
@@ -492,7 +565,7 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
     inst->xbox_axes = true;
 
     TU_LOG1(
-      "HID Gamepad: Xbox axis convention detected "
+      "Raphnet Wusbmote: Xbox axis convention detected "
       "(Rx/Ry=sticks, Z=triggers)\n"
     );
 
@@ -500,7 +573,7 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
     // z/rz = right stick
     // rx/ry = triggers
 
-    dinput_usage_t old_z =
+    raphnet_wusbmote_usage_t old_z =
       inst->zLoc;
 
     inst->zLoc =
@@ -513,18 +586,18 @@ void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
       old_z;
 
     inst->ryLoc =
-      (dinput_usage_t){0};
+      (raphnet_wusbmote_usage_t){0};
   }
 }
-bool is_wusbmote(uint16_t vid, uint16_t pid)
+// Raphnet Wusbmote VID/PID detection
+bool is_raphnet_wusbmote(uint16_t vid, uint16_t pid)
 {
-  return (vid == WUSBMOTE_VID &&
-          pid == WUSBMOTE_PID);
+  return (vid == 0x289B && pid == 0x0080);
 }
 
 
-// hid_parser
-bool parse_wusbmote(
+// HID parser
+bool raphnet_wusbmote_parse(
   uint8_t dev_addr,
   uint8_t instance,
   uint8_t const* desc_report,
@@ -536,12 +609,12 @@ bool parse_wusbmote(
       instance,
       desc_report,
       desc_len,
-      &(info)
+      &(raphnet_wusbmote_info)
     );
 
   if (ret == HID_PARSE_Successful)
   {
-    wusbmote_parse_descriptor(
+    raphnet_wusbmote_parse_descriptor(
       dev_addr,
       instance
     );
@@ -554,17 +627,25 @@ bool parse_wusbmote(
     );
   }
 
+
   // free up memory for next report to be parsed
-  USB_FreeReportInfo(info);
-  info = NULL;
+  USB_FreeReportInfo(
+    raphnet_wusbmote_info
+  );
+
+  raphnet_wusbmote_info = NULL;
+
 
   // assume it is d-input device if buttons exist on report
-  if (hid_devices[dev_addr]
-        .instances[instance]
-        .buttonCnt > 0 &&
-      hid_devices[dev_addr]
-        .instances[instance]
-        .type == HID_GAMEPAD)
+  if (
+    raphnet_wusbmote_devices[dev_addr]
+      .instances[instance]
+      .buttonCnt > 0 &&
+
+    raphnet_wusbmote_devices[dev_addr]
+      .instances[instance]
+      .type == HID_GAMEPAD
+  )
   {
     return true;
   }
@@ -574,22 +655,29 @@ bool parse_wusbmote(
 
 
 // scales down switch analog value to a single byte
-uint8_t wusbmote_scale_analog(
+uint8_t raphnet_wusbmote_scale_analog(
   uint16_t value,
   uint32_t max_value)
 {
-  int mid_point = max_value / 2;
+  int mid_point =
+    max_value / 2;
+
   int scaled_value;
 
   if (value <= mid_point)
   {
     // Scale between [0, mid_point] to [1, 128]
+
     scaled_value =
-      1 + (value * 127) / mid_point;
+      1 +
+      (value * 127) /
+      mid_point;
   }
   else
   {
-    // Scale between [mid_point, max_value] to [128, 255]
+    // Scale between [mid_point, max_value]
+    // to [128, 255]
+
     scaled_value =
       128 +
       ((value - mid_point) * 127) /
@@ -598,18 +686,23 @@ uint8_t wusbmote_scale_analog(
 
   return scaled_value;
 }
-// Read a 16-bit or 8-bit axis value from HID report (little-endian)
-static uint16_t wusbmote_read_axis_value(
+// Read a 16-bit or 8-bit axis value from HID report
+// (little-endian)
+
+static uint16_t
+raphnet_wusbmote_read_axis_value(
   const uint8_t *report,
-  const dinput_usage_t *loc)
+  const raphnet_wusbmote_usage_t *loc)
 {
   if (loc->bitMask > 0xFF)
   {
-    // 16-bit: USB HID is little-endian (low byte first)
+    // 16-bit:
+    // USB HID is little-endian (low byte first)
 
     uint16_t combined =
       (uint16_t)report[loc->byteIndex] |
-      ((uint16_t)report[loc->byteIndex + 1] << 8);
+      ((uint16_t)report[loc->byteIndex + 1]
+       << 8);
 
     return
       (combined & loc->bitMask) >>
@@ -627,7 +720,9 @@ static uint16_t wusbmote_read_axis_value(
 
 
 // Scale a parsed axis to 0-255.
-// Most HID pads use unsigned axes (logical 0..max);
+// Most HID pads use unsigned axes
+// (logical 0..max);
+//
 // some (e.g. ELO Vagabond) declare SIGNED axes
 // centered at 0 (logicalMin < 0),
 // where the unsigned path would read center as ~1.
@@ -635,8 +730,9 @@ static uint16_t wusbmote_read_axis_value(
 // For signed axes, sign-extend the field and map
 // [min,max] -> [1,255] so 0 lands at 128.
 
-static uint8_t wusbmote_scale_axis(
-  const dinput_usage_t *loc,
+static uint8_t
+raphnet_wusbmote_scale_axis(
+  const raphnet_wusbmote_usage_t *loc,
   uint16_t raw)
 {
   if (loc->min < 0)
@@ -656,7 +752,8 @@ static uint8_t wusbmote_scale_axis(
     int32_t out =
       1 +
       (int32_t)(sval - loc->min) *
-      254 / span;
+      254 /
+      span;
 
     return
       out < 1
@@ -666,15 +763,15 @@ static uint8_t wusbmote_scale_axis(
          : (uint8_t)out);
   }
 
-  return wusbmote_scale_analog(
+  return raphnet_wusbmote_scale_analog(
     raw,
     loc->max
   );
 }
-// process wusbmote USB HID input reports
+// Process Raphnet Wusbmote USB HID input reports
 // (from parsed HID descriptor byteIndexes & bitMasks)
 
-void process_wusbmote(
+void raphnet_wusbmote_process(
   uint8_t dev_addr,
   uint8_t instance,
   uint8_t const* report,
@@ -682,49 +779,53 @@ void process_wusbmote(
 {
   uint32_t buttons = 0;
 
-  static raphnet_wusbmote_state_t previous[MAX_DEVICES][5];
+  static raphnet_wusbmote_state_t
+    previous[MAX_DEVICES][5];
 
   raphnet_wusbmote_state_t current = {0};
   current.value = 0;
 
-  dinput_instance_t *inst =
-    &hid_devices[dev_addr].instances[instance];
+  raphnet_wusbmote_instance_t *inst =
+    &raphnet_wusbmote_devices[dev_addr]
+      .instances[instance];
+
 
   uint16_t xValue =
-    wusbmote_read_axis_value(
+    raphnet_wusbmote_read_axis_value(
       report,
       &inst->xLoc
     );
 
   uint16_t yValue =
-    wusbmote_read_axis_value(
+    raphnet_wusbmote_read_axis_value(
       report,
       &inst->yLoc
     );
 
   uint16_t zValue =
-    wusbmote_read_axis_value(
+    raphnet_wusbmote_read_axis_value(
       report,
       &inst->zLoc
     );
 
   uint16_t rzValue =
-    wusbmote_read_axis_value(
+    raphnet_wusbmote_read_axis_value(
       report,
       &inst->rzLoc
     );
 
   uint16_t rxValue =
-    wusbmote_read_axis_value(
+    raphnet_wusbmote_read_axis_value(
       report,
       &inst->rxLoc
     );
 
   uint16_t ryValue =
-    wusbmote_read_axis_value(
+    raphnet_wusbmote_read_axis_value(
       report,
       &inst->ryLoc
     );
+
 
   uint8_t hatValue =
     report[inst->hatLoc.byteIndex] &
@@ -740,7 +841,9 @@ void process_wusbmote(
       : 8;
 
     current.all_direction |=
-      HAT_SWITCH_TO_DIRECTION_BUTTONS[direction];
+      RAPHNET_WUSBMOTE_HAT_SWITCH_TO_DIRECTION_BUTTONS[
+        direction
+      ];
   }
   else
   {
@@ -753,9 +856,15 @@ void process_wusbmote(
 
   for (int i = 0; i < MAX_BUTTONS; i++)
   {
-    if (inst->buttonLoc[i].bitMask &&
-        (report[inst->buttonLoc[i].byteIndex] &
-         inst->buttonLoc[i].bitMask))
+    if (
+      inst->buttonLoc[i].bitMask &&
+      (
+        report[
+          inst->buttonLoc[i].byteIndex
+        ] &
+        inst->buttonLoc[i].bitMask
+      )
+    )
     {
       current.all_buttons |=
         (0x01 << i);
@@ -764,46 +873,47 @@ void process_wusbmote(
 
 
   // parse analog from report
-  // (sign-aware; sticks default centered, triggers to 0)
+  // (sign-aware; sticks default centered,
+  //  triggers to 0)
 
   current.x =
     inst->xLoc.bitMask
-    ? wusbmote_scale_axis(
+    ? raphnet_wusbmote_scale_axis(
         &inst->xLoc,
         xValue)
     : 128;
 
   current.y =
     inst->yLoc.bitMask
-    ? wusbmote_scale_axis(
+    ? raphnet_wusbmote_scale_axis(
         &inst->yLoc,
         yValue)
     : 128;
 
   current.z =
     inst->zLoc.bitMask
-    ? wusbmote_scale_axis(
+    ? raphnet_wusbmote_scale_axis(
         &inst->zLoc,
         zValue)
     : 128;
 
   current.rz =
     inst->rzLoc.bitMask
-    ? wusbmote_scale_axis(
+    ? raphnet_wusbmote_scale_axis(
         &inst->rzLoc,
         rzValue)
     : 128;
 
   current.rx =
     inst->rxLoc.bitMask
-    ? wusbmote_scale_axis(
+    ? raphnet_wusbmote_scale_axis(
         &inst->rxLoc,
         rxValue)
     : 0;
 
   current.ry =
     inst->ryLoc.bitMask
-    ? wusbmote_scale_axis(
+    ? raphnet_wusbmote_scale_axis(
         &inst->ryLoc,
         ryValue)
     : 0;
@@ -812,8 +922,10 @@ void process_wusbmote(
   // TODO: based on diff report rather than current's
   // datastructure in order to get subtle analog changes
 
-  if (previous[dev_addr - 1][instance].value !=
-      current.value)
+  if (
+    previous[dev_addr - 1][instance].value !=
+    current.value
+  )
   {
     previous[dev_addr - 1][instance] =
       current;
@@ -828,7 +940,7 @@ void process_wusbmote(
     if (HID_DEBUG)
     {
       TU_LOG1(
-        "HID Report [%s]: ",
+        "Raphnet Wusbmote HID Report [%s]: ",
         inst->xbox_axes
         ? "Xbox"
         : "DInput"
@@ -852,14 +964,18 @@ void process_wusbmote(
 
       for (
         int i = 0;
-        i < buttonCount && i < MAX_BUTTONS;
-        i++)
+        i < buttonCount &&
+        i < MAX_BUTTONS;
+        i++
+      )
       {
         TU_LOG1(
           " B%d:%d",
           i + 1,
-          (current.all_buttons &
-           (0x01 << i))
+          (
+            current.all_buttons &
+            (0x01 << i)
+          )
           ? 1
           : 0
         );
@@ -986,10 +1102,10 @@ void process_wusbmote(
       }
 
 
-      buttons =
-        // 1. Jouw 11 knoppen op pc-posities
-        // (Xbox-stijl):
+      // Jouw 11 knoppen op pc-posities
+      // (Xbox-stijl)
 
+      buttons =
         ((current.button13)
           ? JP_BUTTON_DU : 0) |
 
@@ -1039,7 +1155,7 @@ void process_wusbmote(
     }
 
 
-    // 3. Analog Axis
+    // Analog Axis
     // (including Analog Triggers)
 
     uint8_t axis_x =
@@ -1113,34 +1229,40 @@ void process_wusbmote(
     router_submit_input(&event);
   }
 }
+
+
 // resets default values in case devices are hotswapped
-void unmount_wusbmote(
+void raphnet_wusbmote_unmount(
   uint8_t dev_addr,
   uint8_t instance)
 {
   TU_LOG1(
-    "wusbmote[%d|%d]: Unmount Reset\r\n",
+    "Raphnet Wusbmote[%d|%d]: Unmount Reset\r\n",
     dev_addr,
     instance
   );
 
   memset(
-    &hid_devices[dev_addr].instances[instance],
+    &raphnet_wusbmote_devices[dev_addr]
+      .instances[instance],
     0,
-    sizeof(dinput_instance_t)
+    sizeof(raphnet_wusbmote_instance_t)
   );
 }
 
 
-// wusbmote device interface
+// Raphnet Wusbmote device interface
 DeviceInterface raphnet_wusbmote_interface = {
-  .name = "wusbmote",
-  .is_device = is_wusbmote,
-  .check_descriptor = parse_wusbmote,
-  .process = process_wusbmote,
-  .unmount = unmount_wusbmote,
+  .name = "Raphnet Wusbmote",
+  .is_device = raphnet_wusbmote_is_device,
+  .check_descriptor = raphnet_wusbmote_parse,
+  .process = raphnet_wusbmote_process,
+  .unmount = raphnet_wusbmote_unmount,
   .init = NULL,
 };
+
+
+
 
 //
 //    buttons = // 1. Jouw 11 knoppen op pc-posities (Xbox-stijl):
