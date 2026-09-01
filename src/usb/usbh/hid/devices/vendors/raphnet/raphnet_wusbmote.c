@@ -1151,7 +1151,7 @@ void raphnet_wusbmote_process(
           ? JP_BUTTON_R2 : 0) |
 
         ((current.button11)
-          ? JP_BUTTON_A1 : 0);
+          ? JP_BUTTON_A4 : 0);
     }
 
 
