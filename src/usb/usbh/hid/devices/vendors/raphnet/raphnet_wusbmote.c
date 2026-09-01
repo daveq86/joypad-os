@@ -1,5 +1,5 @@
 // wusmote.c
-#include "wusmote.h"
+#include "raphnet_wusbmote.h"
 #include "../../generic/hid_parser.h"
 #include "core/buttons.h"
 #include "core/router/router.h"
