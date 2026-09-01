@@ -1,4 +1,4 @@
-// wusmote.c
+// wusbmote.c
 #include "raphnet_wusbmote.h"
 #include "../../generic/hid_parser.h"
 #include "core/buttons.h"
@@ -7,8 +7,8 @@
 #include <string.h>
 
 // Voeg hier de juiste VID/PID van jouw controller toe.
-#define WUSMOTE_VID 0x289B
-#define WUSMOTE_PID 0x0080
+#define WUSBMOTE_VID 0x289B
+#define WUSBMOTE_PID 0x0080
 
 typedef struct
 {
@@ -18,7 +18,7 @@ typedef struct
   int16_t  min;   // logical minimum — <0 marks a signed/centered axis
 } dinput_usage_t;
 
-// Wusmote HID instance state
+// wusbmote HID instance state
 typedef struct TU_ATTR_PACKED
 {
   dinput_usage_t xLoc;
@@ -83,7 +83,7 @@ static inline bool USB_GetHIDReportItemInfoWithReportId(
 }
 
 // Parses HID descriptor into byteIndex/buttonMasks
-void wusmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
+void wusbmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
 {
   HID_ReportItem_t *item = info->FirstReportItem;
 
@@ -516,15 +516,15 @@ void wusmote_parse_descriptor(uint8_t dev_addr, uint8_t instance)
       (dinput_usage_t){0};
   }
 }
-bool is_wusmote(uint16_t vid, uint16_t pid)
+bool is_wusbmote(uint16_t vid, uint16_t pid)
 {
-  return (vid == WUSMOTE_VID &&
-          pid == WUSMOTE_PID);
+  return (vid == WUSBMOTE_VID &&
+          pid == WUSBMOTE_PID);
 }
 
 
 // hid_parser
-bool parse_wusmote(
+bool parse_wusbmote(
   uint8_t dev_addr,
   uint8_t instance,
   uint8_t const* desc_report,
@@ -541,7 +541,7 @@ bool parse_wusmote(
 
   if (ret == HID_PARSE_Successful)
   {
-    wusmote_parse_descriptor(
+    wusbmote_parse_descriptor(
       dev_addr,
       instance
     );
@@ -574,7 +574,7 @@ bool parse_wusmote(
 
 
 // scales down switch analog value to a single byte
-uint8_t wusmote_scale_analog(
+uint8_t wusbmote_scale_analog(
   uint16_t value,
   uint32_t max_value)
 {
@@ -599,7 +599,7 @@ uint8_t wusmote_scale_analog(
   return scaled_value;
 }
 // Read a 16-bit or 8-bit axis value from HID report (little-endian)
-static uint16_t wusmote_read_axis_value(
+static uint16_t wusbmote_read_axis_value(
   const uint8_t *report,
   const dinput_usage_t *loc)
 {
@@ -635,7 +635,7 @@ static uint16_t wusmote_read_axis_value(
 // For signed axes, sign-extend the field and map
 // [min,max] -> [1,255] so 0 lands at 128.
 
-static uint8_t wusmote_scale_axis(
+static uint8_t wusbmote_scale_axis(
   const dinput_usage_t *loc,
   uint16_t raw)
 {
@@ -666,15 +666,15 @@ static uint8_t wusmote_scale_axis(
          : (uint8_t)out);
   }
 
-  return wusmote_scale_analog(
+  return wusbmote_scale_analog(
     raw,
     loc->max
   );
 }
-// process Wusmote USB HID input reports
+// process wusbmote USB HID input reports
 // (from parsed HID descriptor byteIndexes & bitMasks)
 
-void process_wusmote(
+void process_wusbmote(
   uint8_t dev_addr,
   uint8_t instance,
   uint8_t const* report,
@@ -691,37 +691,37 @@ void process_wusmote(
     &hid_devices[dev_addr].instances[instance];
 
   uint16_t xValue =
-    wusmote_read_axis_value(
+    wusbmote_read_axis_value(
       report,
       &inst->xLoc
     );
 
   uint16_t yValue =
-    wusmote_read_axis_value(
+    wusbmote_read_axis_value(
       report,
       &inst->yLoc
     );
 
   uint16_t zValue =
-    wusmote_read_axis_value(
+    wusbmote_read_axis_value(
       report,
       &inst->zLoc
     );
 
   uint16_t rzValue =
-    wusmote_read_axis_value(
+    wusbmote_read_axis_value(
       report,
       &inst->rzLoc
     );
 
   uint16_t rxValue =
-    wusmote_read_axis_value(
+    wusbmote_read_axis_value(
       report,
       &inst->rxLoc
     );
 
   uint16_t ryValue =
-    wusmote_read_axis_value(
+    wusbmote_read_axis_value(
       report,
       &inst->ryLoc
     );
@@ -768,42 +768,42 @@ void process_wusmote(
 
   current.x =
     inst->xLoc.bitMask
-    ? wusmote_scale_axis(
+    ? wusbmote_scale_axis(
         &inst->xLoc,
         xValue)
     : 128;
 
   current.y =
     inst->yLoc.bitMask
-    ? wusmote_scale_axis(
+    ? wusbmote_scale_axis(
         &inst->yLoc,
         yValue)
     : 128;
 
   current.z =
     inst->zLoc.bitMask
-    ? wusmote_scale_axis(
+    ? wusbmote_scale_axis(
         &inst->zLoc,
         zValue)
     : 128;
 
   current.rz =
     inst->rzLoc.bitMask
-    ? wusmote_scale_axis(
+    ? wusbmote_scale_axis(
         &inst->rzLoc,
         rzValue)
     : 128;
 
   current.rx =
     inst->rxLoc.bitMask
-    ? wusmote_scale_axis(
+    ? wusbmote_scale_axis(
         &inst->rxLoc,
         rxValue)
     : 0;
 
   current.ry =
     inst->ryLoc.bitMask
-    ? wusmote_scale_axis(
+    ? wusbmote_scale_axis(
         &inst->ryLoc,
         ryValue)
     : 0;
@@ -1114,12 +1114,12 @@ void process_wusmote(
   }
 }
 // resets default values in case devices are hotswapped
-void unmount_wusmote(
+void unmount_wusbmote(
   uint8_t dev_addr,
   uint8_t instance)
 {
   TU_LOG1(
-    "Wusmote[%d|%d]: Unmount Reset\r\n",
+    "wusbmote[%d|%d]: Unmount Reset\r\n",
     dev_addr,
     instance
   );
@@ -1132,13 +1132,13 @@ void unmount_wusmote(
 }
 
 
-// Wusmote device interface
+// wusbmote device interface
 DeviceInterface raphnet_wusbmote_interface = {
-  .name = "Wusmote",
-  .is_device = is_wusmote,
-  .check_descriptor = parse_wusmote,
-  .process = process_wusmote,
-  .unmount = unmount_wusmote,
+  .name = "wusbmote",
+  .is_device = is_wusbmote,
+  .check_descriptor = parse_wusbmote,
+  .process = process_wusbmote,
+  .unmount = unmount_wusbmote,
   .init = NULL,
 };
 

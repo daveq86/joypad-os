@@ -1,6 +1,6 @@
-// wusmote.h
-#ifndef WUSMOTE_HEADER_H
-#define WUSMOTE_HEADER_H
+// wusbmote.h
+#ifndef WUSBMOTE_HEADER_H
+#define WUSBMOTE_HEADER_H
 
 #include "../../../hid_device.h"
 #include "../../../hid_utils.h"
@@ -15,9 +15,9 @@
 #define HID_MOUSE    0x01
 #define HID_KEYBOARD 0x02
 
-// Wusmote USB identification
-#define WUSMOTE_VID 0x289B
-#define WUSMOTE_PID 0x0080
+// wusbmote USB identification
+#define WUSBMOTE_VID 0x289B
+#define WUSBMOTE_PID 0x0080
 
 typedef union
 {
